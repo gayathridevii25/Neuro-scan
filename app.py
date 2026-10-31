@@ -7,6 +7,7 @@ import streamlit as st
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from scipy.signal import butter, sosfiltfilt, welch, spectrogram, iirnotch, filtfilt
+from scipy.integrate import trapezoid
 from sklearn.ensemble import IsolationForest
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -70,7 +71,7 @@ def band_powers(x, fs):
     result = {}
     for label, (lo, hi) in BANDS.items():
         mask = (freqs >= lo) & (freqs < hi)
-        result[label] = float(np.trapz(psd[mask], freqs[mask])) if mask.sum() > 1 else 0.0
+        result[label] = float(trapezoid(psd[mask], freqs[mask])) if mask.sum() > 1 else 0.0
     total = sum(result.values())
     relative = {k: (v / total * 100 if total > 0 else 0.0) for k, v in result.items()}
     return freqs, psd, result, relative
@@ -189,6 +190,11 @@ try:
         st.error("The uploaded dataset is empty.")
         st.stop()
     numeric_cols = [c for c in df.columns if pd.to_numeric(df[c], errors="coerce").notna().sum() >= 128]
+    # Time/index columns are not EEG signal channels; exclude them from channel selection.
+    time_names = {"time", "time_s", "timestamp", "timestamps", "sample", "sample_index", "index"}
+    eeg_cols = [c for c in numeric_cols if str(c).strip().lower() not in time_names]
+    if eeg_cols:
+        numeric_cols = eeg_cols
     if not numeric_cols:
         st.error("No numeric EEG channel with at least 128 valid samples was found.")
         st.stop()
